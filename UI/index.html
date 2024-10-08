@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        #container {
+            overflow: hidden;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #chat-box {
+            min-height: 75vh;
+            max-height: 75vh;
+            min-width: 100%;
+            border: 1px solid #ccc;
+            overflow-y: scroll;
+            overflow-x: hidden;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            padding: 10px;
+        }
+
+        .message {
+            margin: 10px;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 70%;
+            clear: both;
+        }
+
+        .user-message {
+            background-color: #daf6ff;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .bot-message {
+            background-color: #e1e1e1;
+            margin-right: auto;
+            text-align: left;
+        }
+
+        #inputContainer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            min-width: 100%;
+        }
+
+        #user-input {
+            width: 90%;
+            padding: 5px;
+            border-radius: 5px;
+            border: 1px solid #9c9c9c;
+            margin-right: 1rem;
+        }
+
+        #send-button {
+            background: #32758c;
+            color: #fff;
+            font-weight: 500;
+            border-radius: 10px;
+            border: 1px solid #32758c;
+            padding: 0.5rem 3rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <h1>ChatBot</h1>
+        <div id="chat-box"></div>
+        <div id="inputContainer">
+            <input type="text" id="user-input" placeholder="Type your query here..." onkeypress="checkEnter(event)" />
+            <button id="send-button" onclick="sendQuery()">Send</button>
+        </div>
+    </div>
+    <script>
+        let isWaitingForResponse = false;
+
+        // Function to load chat history
+        async function loadChatHistory() {
+            const chatBox = document.getElementById('chat-box');
+            try {
+                const user_id = "Vipin Samaria"
+                const response = await fetch(`http://127.0.0.1:8000/fetch?user_id=${user_id}`, { method: 'GET' });
+                const history = await response.json();
+                // Display chat history in the chat box
+                history.response.forEach(entry => {
+                    const userMessage = document.createElement("div");
+                    userMessage.className = "message user-message";
+                    userMessage.innerHTML = `<strong>You:</strong> ${entry.user}`;
+                    chatBox.appendChild(userMessage);
+
+                    const botMessage = document.createElement("div");
+                    botMessage.className = "message bot-message";
+                    botMessage.innerHTML = `<strong>Bot:</strong> ${entry.bot}`;
+                    chatBox.appendChild(botMessage);
+                });
+
+                // Scroll to the latest message
+                chatBox.lastChild?.scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                console.error("Failed to fetch chat history:", error);
+            }
+        }
+
+        // Call loadChatHistory on page load
+        window.onload = loadChatHistory;
+
+        // Function to detect Enter key press and call sendQuery()
+        function checkEnter(event) {
+            if (event.key === "Enter" && !isWaitingForResponse) {
+                sendQuery();
+            }
+        }
+
+        async function sendQuery() {
+            const input = document.getElementById('user-input');
+            const sendButton = document.getElementById('send-button');
+            const chatBox = document.getElementById('chat-box');
+            const query = input.value;
+            input.value = '';
+            if (!query || isWaitingForResponse) return;
+
+            // Disable input and button while waiting for response
+            input.disabled = true;
+            sendButton.disabled = true;
+            isWaitingForResponse = true;
+
+            // Display user's query in the chat box
+            const userMessage = document.createElement("div");
+            userMessage.className = "message user-message";
+            userMessage.innerHTML = `<strong>You:</strong> ${query}`;
+            chatBox.appendChild(userMessage);
+            userMessage.scrollIntoView({ behavior: 'smooth' });
+
+            // Display loading dots while waiting for bot response
+            const loadingMessage = document.createElement("div");
+            loadingMessage.className = "message bot-message";
+            loadingMessage.innerHTML = `<strong>Bot:</strong> <span id="loading-dots">Loading</span>`;
+            chatBox.appendChild(loadingMessage);
+            loadingMessage.scrollIntoView({ behavior: 'smooth' });
+
+            const loadingDots = document.getElementById('loading-dots');
+            let dotCount = 0;
+            const dotInterval = setInterval(() => {
+                dotCount = (dotCount + 1) % 4;
+                loadingDots.textContent = 'Loading' + '.'.repeat(dotCount);
+            }, 500);
+
+            try {
+                // Send the query to the backend
+                const response = await fetch('http://127.0.0.1:8000/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query })
+                });
+
+                const data = await response.json();
+
+                // Clear loading dots and display bot's response
+                clearInterval(dotInterval);
+                loadingMessage.innerHTML = `<strong>Bot:</strong> ${data.response}`;
+                loadingMessage.scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                loadingMessage.innerHTML = `<strong>Bot:</strong> Sorry, something went wrong.`;
+                loadingMessage.scrollIntoView({ behavior: 'smooth' });
+            } finally {
+                // Re-enable input and button
+                input.disabled = false;
+                sendButton.disabled = false;
+                input.focus();
+                isWaitingForResponse = false;
+            }
+        }
+    </script>
+</body>
+
+</html>
